@@ -1,0 +1,23 @@
+---
+apiVersion: batch/v1                                                                                                                  
+kind: Job                                                                                                                             
+metadata:                                                                                                                             
+  name: inception-client                                                                                                              
+spec:                                                                                                                                 
+  template:                                                                                                                           
+    metadata:                                                                                                                         
+      name: inception-client                                                                                                          
+    spec:                                                                                                                             
+      containers:
+      - name: inception-client
+        image: katacoda/tensorflow_serving
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - curl -v -L http://thecatapi.com/api/images/get?type=jpg -o /cat.jpg &&
+          /serving/bazel-bin/tensorflow_serving/example/inception_client
+          --server=10.254.143.3:9000 --image=/cat.jpg
+      restartPolicy: Never
+  completions: 4
+  parallelism: 2
