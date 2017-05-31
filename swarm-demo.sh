@@ -8,6 +8,7 @@ FIPS="${FIPS:-10.60.253.17 10.60.253.35 10.60.253.29}"
 OPENRC_FILE="/ilab-home/hpcgodd1/mark-openrc.sh"
 VENV="/ilab-home/hpcgodd1/os-venv"
 STACK="mark-swarm-fedora-25"
+DOCKER_VERSION=17.05.0-ce
 
 function announce {
     >&2 echo -e "\e[33m$*\e[39m"
@@ -26,12 +27,18 @@ function pause {
 announce "Demo: Docker swarm on OpenStack magnum!"
 read
 
+MASTER_IP=$(magnum cluster-show mark-swarm-fedora-25 | awk '$2 == "master_addresses" { print $4 }' | sed -e 's/\['"'"'//g' -e 's/'"'"'\]//g')
+if [[ -z $MASTER_IP ]]; then
+    echo "Failed to determine master IP address"
+    exit 1
+fi
+
 mkdir swarm-demo
 cd swarm-demo
 
 announce "Downloading docker client"
-run wget https://get.docker.com/builds/Linux/x86_64/docker-1.12.6.tgz
-run tar xzf docker-1.12.6.tgz
+run wget https://get.docker.com/builds/Linux/x86_64/docker-${DOCKER_VERSION}.tgz
+run tar xzf docker-${DOCKER_VERSION}.tgz
 export PATH=${PATH}:$(pwd)/docker
 pause
 
@@ -62,13 +69,19 @@ if [[ $SWARM_MODE -eq 1 ]]; then
 else
     for i in $(seq 0 2) ; do run docker run -d -p 8080:80 --name nginx-$i --net overlay-net nginx; done
 fi
+run sleep 10
 run docker ps
 pause
 
-announce "Getting default page from nginx via floating IPs"
-for FIP in $FIPS ; do
-    run curl http://$FIP:8080
-done
+if [[ $SWARM_MODE -eq 1 ]]; then
+    announce "Getting default page from nginx via master"
+    run curl http://${MASTER_IP}:8080
+else
+    announce "Getting default page from nginx via floating IPs"
+    for FIP in $FIPS ; do
+        run curl http://$FIP:8080
+    done
+fi
 pause
 
 announce "Getting default page from nginx via docker overlay network"
