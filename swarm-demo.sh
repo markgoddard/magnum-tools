@@ -5,10 +5,11 @@
 
 # These IPs should be set to the floating IP addresses of the Swarm nodes.
 FIPS="${FIPS:-10.60.253.17 10.60.253.35 10.60.253.29}"
-OPENRC_FILE="/ilab-home/hpcgodd1/mark-openrc.sh"
-VENV="/ilab-home/hpcgodd1/os-venv"
-STACK="mark-swarm-fedora-25"
+OPENRC_FILE="${OPENRC_FILE:-/ilab-home/hpcgodd1/mark-openrc.sh}"
+VENV="${VENV:-/ilab-home/hpcgodd1/os-venv}"
+CLUSTER="${CLUSTER:-mark-swarm-fedora-25}"
 DOCKER_VERSION=17.05.0-ce
+PAUSE=${PAUSE:-1}
 
 function announce {
     >&2 echo -e "\e[33m$*\e[39m"
@@ -21,13 +22,17 @@ function run {
 
 function pause {
     >&2 echo -e "\e[34mDone\e[39m"
-    read
+    if [[ ${PAUSE} = 1 ]]; then
+        read
+    fi
 }
 
 announce "Demo: Docker swarm on OpenStack magnum!"
-read
+if [[ ${PAUSE} = 1 ]]; then
+    read
+fi
 
-MASTER_IP=$(magnum cluster-show mark-swarm-fedora-25 | awk '$2 == "master_addresses" { print $4 }' | sed -e 's/\['"'"'//g' -e 's/'"'"'\]//g')
+MASTER_IP=$(magnum cluster-show ${CLUSTER} | awk '$2 == "master_addresses" { print $4 }' | sed -e 's/\['"'"'//g' -e 's/'"'"'\]//g')
 if [[ -z $MASTER_IP ]]; then
     echo "Failed to determine master IP address"
     exit 1
@@ -39,13 +44,13 @@ cd swarm-demo
 announce "Downloading docker client"
 run wget https://get.docker.com/builds/Linux/x86_64/docker-${DOCKER_VERSION}.tgz
 run tar xzf docker-${DOCKER_VERSION}.tgz
-export PATH=${PATH}:$(pwd)/docker
+export PATH=$(pwd)/docker:${PATH}
 pause
 
 announce "Getting cluster configuration from magnum API"
 source "${VENV}/bin/activate"
 source "${OPENRC_FILE}"
-run magnum cluster-config ${STACK} > swarm-env
+run magnum cluster-config ${CLUSTER} > swarm-env
 deactivate
 ls -l
 pause
@@ -59,15 +64,29 @@ if docker info | grep 'Swarm: active' >/dev/null; then
     SWARM_MODE=1
 fi
 
+announce "Cleaning up old state"
+if [[ $SWARM_MODE -eq 1 ]]; then
+    run docker service rm nginx || true
+else
+    for i in $(seq 0 2) ; do
+        run docker rm -f nginx-$i
+    done
+fi
+run docker network rm overlay-net || true
+sleep 10
+pause
+
 announce "Creating a docker overlay network"
-run docker network create overlay-net --driver overlay --subnet 10.0.1.0/24
+run docker network create --driver overlay --subnet 10.0.1.0/24 --attachable overlay-net
 pause
 
 announce "Creating 3 nginx containers"
 if [[ $SWARM_MODE -eq 1 ]]; then
     run docker service create -p 8080:80 --name nginx --network overlay-net --replicas 3 nginx
 else
-    for i in $(seq 0 2) ; do run docker run -d -p 8080:80 --name nginx-$i --net overlay-net nginx; done
+    for i in $(seq 0 2) ; do
+        run docker run -d -p 8080:80 --name nginx-$i --net overlay-net nginx
+    done
 fi
 run sleep 10
 run docker ps
