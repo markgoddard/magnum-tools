@@ -48,7 +48,7 @@ pause
 announce "Getting cluster configuration from magnum API"
 source "${VENV}/bin/activate"
 source "${OPENRC_FILE}"
-run magnum cluster-config ${CLUSTER} > k8s-env
+run openstack coe cluster config ${CLUSTER} > k8s-env
 deactivate
 ls -l
 pause
@@ -100,8 +100,8 @@ run kubectl get jobs
 pause
 
 announce "Viewing job results"
-pods=$(kubectl get pods  --show-all -l job-name=inception-client --output=jsonpath={.items..metadata.name})
+pods=$(kubectl get pods -l job-name=inception-client --output=jsonpath={.items..metadata.name})
 for pod in $pods; do
-    run kubectl log $pod
+    run kubectl logs $pod
     pause
 done
