@@ -15,17 +15,20 @@ spec:
       labels:
         k8s-app: inception-deployment
       annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''                                                                                
-    spec:                                                                                                                             
-      containers:                                                                                                                     
-      - name: inception-container                                                                                                     
-        image: katacoda/tensorflow_serving                                                                                            
-        imagePullPolicy: IfNotPresent                                                                                                        
-        command:                                                                                                                      
-        - /bin/sh                                                                                                                     
-        - -c                                                                                                                          
-        args:                                                                                                                         
-        - /serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server                                                 
-          --port=9000 --model_name=inception --model_base_path=/serving/inception-export                                              
-        ports:                                                                                                                        
-        - containerPort: 9000 
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      containers:
+      - name: inception-container
+        image: katacoda/tensorflow_serving
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            memory: "500Mi"
+        command:
+        - /bin/sh
+        - -c
+        args:
+        - /serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server
+          --port=9000 --model_name=inception --model_base_path=/serving/inception-export
+        ports:
+        - containerPort: 9000

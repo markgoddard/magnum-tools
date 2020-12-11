@@ -3,10 +3,11 @@
 # Script demoing the use of a kubernetes cluster which has been deployed
 # via OpenStack magnum.
 
-# These IPs should be set to the floating IP addresses of the Swarm nodes.
-OPENRC_FILE="${OPENRC_FILE:-/ilab-home/hpcgodd1/mark-openrc.sh}"
-VENV="${VENV:-/ilab-home/hpcgodd1/os-venv}"
-CLUSTER="${CLUSTER:-mark-k8s-fedora-25}"
+if [[ -z $KUBECONFIG ]]; then
+    OPENRC_FILE="${OPENRC_FILE:-openrc.sh}"
+    VENV="${VENV:-venv}"
+    CLUSTER="${CLUSTER:-k8s-fedora-coreos-32}"
+fi
 PAUSE=${PAUSE:-1}
 SLEEP=${SLEEP:-20}
 
@@ -36,28 +37,33 @@ if [[ ${PAUSE} = 1 ]]; then
     read
 fi
 
-mkdir k8s-demo
-cd k8s-demo
+if ! which kubectl &>/dev/null; then
+    mkdir -p k8s-demo
+    pushd k8s-demo
+    announce "Downloading kubectl client"
+    run curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+    chmod +x kubectl
+    export PATH=$(pwd):${PATH}
+    pause
+    popd
+fi
 
-announce "Downloading kubectl client"
-run curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
-chmod +x kubectl
-export PATH=$(pwd):${PATH}
-pause
-
-announce "Getting cluster configuration from magnum API"
-source "${VENV}/bin/activate"
-source "${OPENRC_FILE}"
-run openstack coe cluster config ${CLUSTER} > k8s-env
-deactivate
-ls -l
-pause
-
-announce "Display dowloaded cluster configuration environment"
-run cat k8s-env
-source k8s-env
-cd -
-pause
+if [[ -z $KUBECONFIG ]]; then
+    mkdir -p k8s-demo
+    pushd k8s-demo
+    announce "Getting cluster configuration from magnum API"
+    source "${VENV}/bin/activate"
+    source "${OPENRC_FILE}"
+    run openstack coe cluster config ${CLUSTER} > k8s-env
+    deactivate
+    ls -l
+    pause
+    announce "Display dowloaded cluster configuration environment"
+    run cat $KUBECONFIG
+    source $KUBECONFIG
+    pause
+    popd
+fi
 
 announce "Cleaning up old state"
 run kubectl delete -f inception-client-job.yml || true
